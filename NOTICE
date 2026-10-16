@@ -1,0 +1,9 @@
+Syncro MCP Server
+Copyright 2026 MSPbots.ai
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"Syncro" and "SyncroMSP" are trademarks of their respective owner. This
+project is an independent integration that calls the documented Syncro REST
+API; it contains no Syncro source code and is not affiliated with or endorsed
+by Syncro.
