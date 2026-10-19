@@ -16,7 +16,7 @@ invoices.
 
 | Header | Required | Type | Default | Allowed values | Description | Example |
 |---|---|---|---|---|---|---|
-| `X-Syncro-Subdomain` | Yes | string | none | account name (`acme`, `acme.syncromsp.com` or its URL) | The `acme` in `https://acme.syncromsp.com` | `acme` |
+| `X-Syncro-Subdomain` | Yes | string | none | account name (`yourcompany`, `yourcompany.syncromsp.com` or its URL) | The `yourcompany` in `https://yourcompany.syncromsp.com` | `yourcompany` |
 | `X-Syncro-API-Key` | Yes | string | none | - | Syncro API token (a leading `Bearer ` is accepted and ignored) | `your-syncro-api-key` |
 
 Where to get them:
@@ -104,7 +104,7 @@ from the environment.
 curl -s http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -H "X-Syncro-Subdomain: acme" \
+  -H "X-Syncro-Subdomain: yourcompany" \
   -H "X-Syncro-API-Key: your-syncro-api-key" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 
@@ -112,7 +112,7 @@ curl -s http://localhost:8080/mcp \
 curl -s http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -H "X-Syncro-Subdomain: acme" \
+  -H "X-Syncro-Subdomain: yourcompany" \
   -H "X-Syncro-API-Key: your-syncro-api-key" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"syncro_tickets_list","arguments":{"customer_id":123,"resolved":false}}}'
 ```

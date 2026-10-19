@@ -29,7 +29,7 @@ from syncro_mcp.server import (
 
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
 LIST_TOOLS = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
-CREDS = {"X-Syncro-Subdomain": "acme", "X-Syncro-API-Key": "your-syncro-api-key"}
+CREDS = {"X-Syncro-Subdomain": "yourcompany", "X-Syncro-API-Key": "your-syncro-api-key"}
 
 
 def _client() -> TestClient:
@@ -47,9 +47,9 @@ def test_health_is_local():
     "headers",
     [
         {"X-Syncro-API-Key": "key"},
-        {"X-Syncro-Subdomain": "acme"},
-        {"X-Syncro-Subdomain": "acme", "X-Syncro-API-Key": "Bearer "},
-        {"X-Syncro-Subdomain": "acme", "X-Syncro-API-Key": "${SYNCRO_API_KEY}"},
+        {"X-Syncro-Subdomain": "yourcompany"},
+        {"X-Syncro-Subdomain": "yourcompany", "X-Syncro-API-Key": "Bearer "},
+        {"X-Syncro-Subdomain": "yourcompany", "X-Syncro-API-Key": "${SYNCRO_API_KEY}"},
     ],
 )
 def test_missing_credentials_return_401(headers):
@@ -76,14 +76,14 @@ def test_tools_list_over_http():
 @pytest.mark.parametrize(
     "value,expected",
     [
-        ("acme", "acme"),
-        ("ACME", "acme"),
-        ("acme.syncromsp.com", "acme"),
-        ("https://acme.syncromsp.com/", "acme"),
+        ("yourcompany", "yourcompany"),
+        ("YOURCOMPANY", "yourcompany"),
+        ("yourcompany.syncromsp.com", "yourcompany"),
+        ("https://yourcompany.syncromsp.com/", "yourcompany"),
         ("my-shop", "my-shop"),
         ("evil.example.com", None),
-        ("acme/../x", None),
-        ("-acme", None),
+        ("yourcompany/../x", None),
+        ("-yourcompany", None),
     ],
 )
 def test_normalize_subdomain(value, expected):
@@ -110,9 +110,9 @@ def _run_middleware(headers: list[tuple[bytes, bytes]]) -> dict:
 
 
 def test_headers_reach_request_context_and_are_reset():
-    seen = _run_middleware([(b"x-syncro-subdomain", b"https://acme.syncromsp.com"), (b"x-syncro-api-key", b"Bearer key-123")])
+    seen = _run_middleware([(b"x-syncro-subdomain", b"https://yourcompany.syncromsp.com"), (b"x-syncro-api-key", b"Bearer key-123")])
     assert seen["credentials"].api_key == "key-123"
-    assert seen["client"].base_url == "https://acme.syncromsp.com/api/v1"
+    assert seen["client"].base_url == "https://yourcompany.syncromsp.com/api/v1"
     assert _credentials_var.get() is None
 
 
@@ -135,7 +135,7 @@ def test_concurrent_requests_do_not_share_credentials():
     middleware = GatewayCredentialsMiddleware(app)
 
     def scope(key: bytes) -> dict:
-        return {"type": "http", "path": "/mcp", "headers": [(b"x-syncro-subdomain", b"acme"), (b"x-syncro-api-key", key)]}
+        return {"type": "http", "path": "/mcp", "headers": [(b"x-syncro-subdomain", b"yourcompany"), (b"x-syncro-api-key", key)]}
 
     async def both():
         await asyncio.gather(middleware(scope(b"tenant-a"), receive, send), middleware(scope(b"tenant-b"), receive, send))
@@ -145,5 +145,5 @@ def test_concurrent_requests_do_not_share_credentials():
 
 
 def test_credentials_repr_hides_key():
-    seen = _run_middleware([(b"x-syncro-subdomain", b"acme"), (b"x-syncro-api-key", b"very-secret-value")])
+    seen = _run_middleware([(b"x-syncro-subdomain", b"yourcompany"), (b"x-syncro-api-key", b"very-secret-value")])
     assert "very-secret-value" not in repr(seen["credentials"])

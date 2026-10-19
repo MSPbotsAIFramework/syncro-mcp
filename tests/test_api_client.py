@@ -22,7 +22,7 @@ from syncro_mcp import api_client
 from syncro_mcp.api_client import SyncroClient, SyncroCredentials, SyncroError
 from syncro_mcp.server import _credentials_var, create_mcp_server
 
-CREDS = SyncroCredentials(subdomain="acme", api_key="key-123")
+CREDS = SyncroCredentials(subdomain="yourcompany", api_key="key-123")
 META = {"total_pages": 3, "total_entries": 60, "per_page": 25, "page": 1}
 
 
@@ -88,7 +88,7 @@ async def test_key_is_sent_as_bearer_not_in_the_url():
     client = SyncroClient(CREDS, httpx.AsyncClient(transport=httpx.MockTransport(rec)))
     await client.get("me")
     request = rec.requests[0]
-    assert str(request.url) == "https://acme.syncromsp.com/api/v1/me"
+    assert str(request.url) == "https://yourcompany.syncromsp.com/api/v1/me"
     assert request.headers["Authorization"] == "Bearer key-123"
     assert "key-123" not in str(request.url)
 
@@ -164,9 +164,9 @@ async def test_customers_phone_is_sent_as_search(monkeypatch):
 
 async def test_customers_search_limit(monkeypatch):
     rec = Recorder({"customers": _pages("customers", [[{"id": i} for i in range(25)], [{"id": 99}]])})
-    result = await _call(monkeypatch, rec, "syncro_customers_search", {"query": "acme", "limit": 26})
+    result = await _call(monkeypatch, rec, "syncro_customers_search", {"query": "yourcompany", "limit": 26})
     assert result["count"] == 26
-    assert rec.requests[0].url.params["query"] == "acme"
+    assert rec.requests[0].url.params["query"] == "yourcompany"
 
 
 async def test_assets_serial_is_matched_exactly(monkeypatch):
@@ -268,5 +268,5 @@ async def test_gets_unwrap_their_record(monkeypatch):
 async def test_status_reports_user(monkeypatch):
     me = {"user_name": "Joe", "user_email": "joe@example.com", "user_id": 1, "admin": True, "permissions": {"ticket": {"read": True}}}
     result = await _call(monkeypatch, Recorder({"me": me}), "syncro_status", {})
-    assert result["connected"] is True and result["subdomain"] == "acme"
+    assert result["connected"] is True and result["subdomain"] == "yourcompany"
     assert result["user"]["user_name"] == "Joe"

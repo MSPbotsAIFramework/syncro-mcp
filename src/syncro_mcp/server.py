@@ -80,7 +80,7 @@ def _clean(value: str | None) -> str | None:
 
 
 def normalize_subdomain(value: str) -> str | None:
-    """"acme", "acme.syncromsp.com" or "https://acme.syncromsp.com/" -> "acme"."""
+    """"yourcompany", "yourcompany.syncromsp.com" or "https://yourcompany.syncromsp.com/" -> "yourcompany"."""
     text = value.strip().lower()
     host = _HOST.match(text)
     if host:
@@ -122,7 +122,7 @@ class GatewayCredentialsMiddleware:
         subdomain = normalize_subdomain(subdomain_raw or "")
         if subdomain is None:
             await JSONResponse(
-                {"error": "Invalid header", "message": f"{HEADER_SUBDOMAIN} must be the account name, e.g. acme for acme.syncromsp.com"},
+                {"error": "Invalid header", "message": f"{HEADER_SUBDOMAIN} must be the account name, e.g. yourcompany for yourcompany.syncromsp.com"},
                 status_code=400,
             )(scope, receive, send)
             return
