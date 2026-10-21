@@ -36,31 +36,38 @@ plain account name gets HTTP 400.
 
 ## Tools
 
-All tools return a JSON string. Syncro returns list results in pages of 25 with
-`{total_entries, total_pages, page}`; pass `page` for more and `per_page` (at most 25) to
-return fewer. A few filters the Syncro API does not offer are applied by this server over up
-to 5 pages; those results report `scanned_pages` and `next_page` instead of totals.
+All tools return a JSON string. Syncro pages its lists with a fixed size per list
+(customers 100, tickets 50, contacts 50, invoices 25, assets 25; the response's `meta.per_page`
+is used when it differs) and, except for invoices, does not let the caller choose it. List
+tools take `per_page` (1-100, default: Syncro's own size) and either `page` or `offset`, and
+map that window onto Syncro pages, so any size works. Results carry
+`{count, total_entries, total_pages, page, per_page, offset, has_more, next_page, next_offset}`;
+follow `next_page` (or `next_offset`) until `has_more` is false - no record is skipped or
+repeated, also when a large page is cut to fit the response size limit (then only
+`next_offset` is returned). A few filters the Syncro API does not offer are applied by this
+server over up to 5 Syncro pages; those results report `scanned_pages`, `has_more` and
+`next_page` (a Syncro page number) instead of totals, and return every match on the pages read.
 
 | Tool | Purpose | Parameters (required in **bold**) |
 |---|---|---|
 | `syncro_navigate` | Describe the tools of one area (changes nothing) | **domain** (`customers`, `tickets`, `assets`, `contacts`, `invoices`) |
 | `syncro_status` | Check the connection: subdomain, API user and permissions | - |
-| `syncro_customers_list` | List customers with contact details | query, business_name, email, phone, include_disabled, page, per_page |
+| `syncro_customers_list` | List customers with contact details | query, business_name, email, phone, include_disabled, page, per_page, offset |
 | `syncro_customers_get` | One customer with addresses, contacts and properties | **customer_id** |
 | `syncro_customers_search` | Find customers by name, business, email or phone | **query**, limit |
 | `syncro_customers_create` | Create a customer (**write**) | business_name, firstname, lastname, email, phone, mobile, address, address_2, city, state, zip, notes |
-| `syncro_tickets_list` | List tickets | customer_id, contact_id, status, user_id, problem_type*, resolved*, query, since, page, per_page |
+| `syncro_tickets_list` | List tickets | customer_id, contact_id, status, user_id, problem_type*, resolved*, query, since, page, per_page, offset |
 | `syncro_tickets_get` | One ticket with its comments | **ticket_id** |
 | `syncro_tickets_create` | Create a ticket, optionally with a first comment (**write**) | **customer_id**, **subject**, problem_type, status, contact_id, user_id, due_date, comment_body, comment_subject |
 | `syncro_tickets_update` | Change subject, problem type, status, technician or due date (**write**) | **ticket_id**, subject, problem_type, status, user_id, due_date |
 | `syncro_tickets_add_comment` | Add a comment; public comments may email the customer (**write**) | **ticket_id**, **body**, subject, hidden, do_not_email |
-| `syncro_assets_list` | List assets (devices) | customer_id, asset_type*, asset_serial*, query, page, per_page |
+| `syncro_assets_list` | List assets (devices) | customer_id, asset_type*, asset_serial*, query, page, per_page, offset |
 | `syncro_assets_get` | One asset with type, serial and RMM properties | **asset_id** |
 | `syncro_assets_search` | Find assets by name or exact serial | query, asset_serial, customer_id, limit |
-| `syncro_contacts_list` | List contacts | customer_id, query*, page, per_page |
+| `syncro_contacts_list` | List contacts | customer_id, query*, page, per_page, offset |
 | `syncro_contacts_get` | One contact | **contact_id** |
 | `syncro_contacts_create` | Add a contact to a customer (**write**) | **customer_id**, **name**, email, phone, mobile, address1, address2, city, state, zip, notes |
-| `syncro_invoices_list` | List invoices | customer_id*, status (`paid`, `unpaid`, `partial`*), since_date, query*, page, per_page |
+| `syncro_invoices_list` | List invoices | customer_id*, status (`paid`, `unpaid`, `partial`*), since_date, query*, page, per_page, offset |
 | `syncro_invoices_get` | One invoice with line items, totals and balance | **invoice_id** |
 | `syncro_invoices_create` | Create an empty invoice numbered by Syncro (**write**) | **customer_id**, date (default today), due_date, notes |
 | `syncro_invoices_email` | Email an invoice to its customer (**write**) | **invoice_id**, cc_emails, subject, message (accepted, ignored) |
@@ -135,7 +142,7 @@ uv run pytest
 - **Accepted but ignored.** `syncro_invoices_email` still takes `cc_emails`, `subject` and
   `message` for compatibility, but does not send them: `POST /invoices/{id}/email` has no
   request body (it uses the account's invoice email settings); the result lists them under
-  `ignored_params`. `per_page` is capped at Syncro's fixed page size of 25.
+  `ignored_params`.
 - **Write tools.** The 7 tools marked **write** change records or contact the customer; their
   descriptions tell the agent to use them only on explicit request. There are no delete tools.
 - **No interactive prompts.** Older versions asked the user for a date range before an

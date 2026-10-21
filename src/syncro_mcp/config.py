@@ -18,8 +18,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Each Syncro account has its own host; {subdomain} comes from X-Syncro-Subdomain.
 API_BASE_TEMPLATE = "https://{subdomain}.syncromsp.com/api/v1"
 
-# Syncro list endpoints return fixed pages of 25 records.
+# Fallback page size for a list endpoint missing from NATIVE_PAGE_SIZES.
 PAGE_SIZE = 25
+# Syncro's fixed page size per list endpoint (the response's meta.per_page wins
+# when it says otherwise). Only /invoices accepts a per_page parameter.
+NATIVE_PAGE_SIZES = {"customers": 100, "tickets": 50, "contacts": 50, "invoices": 25, "customer_assets": 25}
+MAX_PER_PAGE = 100
 # Pages read when a filter has to be applied on our side.
 MAX_SCAN_PAGES = 5
 

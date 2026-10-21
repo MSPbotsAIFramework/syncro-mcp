@@ -26,6 +26,7 @@ from ._common import (
     ClientFactory,
     OptionalCustomerId,
     Page,
+    Offset,
     PerPage,
     compact,
     contains,
@@ -61,6 +62,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         query: Annotated[str | None, Field(description="Invoice number, name or customer name contains this.")] = None,
         page: Page = None,
         per_page: PerPage = None,
+        offset: Offset = None,
     ) -> str:
         """List invoices (number, customer, date, total, balance) by customer, paid state or date."""
 
@@ -76,7 +78,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
             )
             text = (query or "").strip()
             if customer_id is None and not text and status != "partial":
-                return await list_page(client, "invoices", "invoices", params, page, per_page)
+                return await list_page(client, "invoices", "invoices", params, page, per_page, offset)
 
             def keep(invoice: dict) -> bool:
                 if customer_id is not None and invoice.get("customer_id") != customer_id:
@@ -85,6 +87,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return not text or contains(invoice, text, "number", "name", "customer_business_then_name")
 
+            if offset is not None:
+                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
             return await scan_filtered(
                 client, "invoices", "invoices", params, keep, page, per_page or 25,
                 "customer_id / query / partial are matched by this server over the pages listed in scanned_pages.",

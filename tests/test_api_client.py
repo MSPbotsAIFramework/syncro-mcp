@@ -131,10 +131,14 @@ async def test_tickets_list_maps_filters_to_api_names(monkeypatch):
     rec = Recorder({"tickets": {"tickets": [{"id": 1}, {"id": 2}], "meta": META}})
     args = {"customer_id": 5, "status": "New", "since": "2026-06-01T08:00:00Z", "page": 2, "per_page": 1}
     result = await _call(monkeypatch, rec, "syncro_tickets_list", args)
-    params = rec.requests[0].url.params
-    assert (params["customer_id"], params["status"], params["since_updated_at"], params["page"]) == ("5", "New", "2026-06-01", "2")
+    params = rec.requests[-1].url.params
+    # page 2 of 1-record pages is the second record overall, i.e. on Syncro's page 1.
+    assert (params["customer_id"], params["status"], params["since_updated_at"], params["page"]) == ("5", "New", "2026-06-01", "1")
     assert "per_page" not in params
-    assert result == {"tickets": [{"id": 1}], "count": 1, "total_entries": 60, "total_pages": 3, "page": 1}
+    assert result == {
+        "tickets": [{"id": 2}], "count": 1, "total_entries": 60, "total_pages": 60, "page": 2, "per_page": 1,
+        "offset": 1, "has_more": True, "next_page": 3, "next_offset": 2,
+    }
 
 
 async def test_tickets_resolved_filter_scans_pages(monkeypatch):
@@ -280,3 +284,95 @@ async def test_status_reports_user(monkeypatch):
     result = await _call(monkeypatch, Recorder({"me": me}), "syncro_status", {})
     assert result["connected"] is True and result["subdomain"] == "yourcompany"
     assert result["user"]["user_name"] == "Joe"
+
+
+# ---- paging never skips or repeats records (PRD-20961) -----------------------
+
+
+def _syncro(key: str, rows: list[dict], size: int, report_size: bool = True):
+    """A Syncro list endpoint with a fixed page size that ignores per_page."""
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        number = int(request.url.params.get("page", "1"))
+        pages = max(1, -(-len(rows) // size))
+        meta = {"total_pages": pages, "total_entries": len(rows), "page": number}
+        if report_size:
+            meta["per_page"] = size
+        return httpx.Response(200, json={key: rows[(number - 1) * size : number * size], "meta": meta})
+
+    return reply
+
+
+async def _follow(monkeypatch, tool: str, key: str, route, args: dict) -> list:
+    """Call ``tool`` and follow its own paging fields to the end."""
+    seen: list = []
+    call = dict(args)
+    for _ in range(200):
+        out = await _call(monkeypatch, Recorder({key if key != "assets" else "customer_assets": route}), tool, call)
+        assert out["count"] == len(out[key])
+        seen += [row["id"] for row in out[key]]
+        if out.get("next_page"):
+            call = {**args, "page": out["next_page"]}
+        elif out.get("next_offset") is not None:
+            call = {k: v for k, v in args.items() if k != "page"} | {"offset": out["next_offset"]}
+        else:
+            assert not out.get("has_more")
+            return seen
+    raise AssertionError("paging did not finish")
+
+
+CUSTOMERS = [{"id": i, "business_name": f"Customer {i}"} for i in range(1, 944)]
+
+
+@pytest.mark.parametrize("args", [{}, {"per_page": 20}, {"per_page": 7}, {"per_page": 100}], ids=["default", "20", "7", "100"])
+async def test_customers_paging_returns_all_943_once(monkeypatch, args):
+    seen = await _follow(monkeypatch, "syncro_customers_list", "customers", _syncro("customers", CUSTOMERS, 100), args)
+    assert seen == list(range(1, 944))
+
+
+async def test_contacts_and_filtered_tickets_page_completely(monkeypatch):
+    contacts = [{"id": i} for i in range(1, 1309)]
+    seen = await _follow(monkeypatch, "syncro_contacts_list", "contacts", _syncro("contacts", contacts, 50), {"per_page": 20})
+    assert seen == list(range(1, 1309))
+    tickets = [{"id": i} for i in range(1, 8)]  # e.g. a since filter matching 7 tickets
+    seen = await _follow(monkeypatch, "syncro_tickets_list", "tickets", _syncro("tickets", tickets, 50), {"since": "2026-10-15", "per_page": 3})
+    assert seen == list(range(1, 8))
+
+
+async def test_has_more_reflects_records_actually_returned(monkeypatch):
+    tickets = [{"id": i} for i in range(1, 8)]
+    out = await _call(monkeypatch, Recorder({"tickets": _syncro("tickets", tickets, 50)}), "syncro_tickets_list", {"per_page": 3})
+    assert (out["count"], out["has_more"], out["next_page"], out["next_offset"], out["total_pages"]) == (3, True, 2, 3, 3)
+
+
+async def test_page_size_is_learned_when_meta_omits_it(monkeypatch):
+    # Built-in size for customers is 100; this account's endpoint pages by 40 and does not say so.
+    seen = await _follow(monkeypatch, "syncro_customers_list", "customers", _syncro("customers", CUSTOMERS, 40, report_size=False), {"per_page": 30})
+    assert seen == list(range(1, 944))
+
+
+async def test_large_records_cut_by_size_limit_continue_without_gaps(monkeypatch):
+    big = [{"id": i, "notes": [f"line {j}" for j in range(5)], **{f"f{j}": f"value-{j:04d}" for j in range(60)}} for i in range(1, 251)]
+    seen = await _follow(monkeypatch, "syncro_customers_list", "customers", _syncro("customers", big, 100), {})
+    assert seen == list(range(1, 251))
+
+
+async def test_offset_and_page_together_are_rejected(monkeypatch):
+    out = await _call(monkeypatch, Recorder({"customers": _syncro("customers", CUSTOMERS, 100)}), "syncro_customers_list", {"page": 2, "offset": 5})
+    assert out["error"]["code"] == "invalid_argument"
+
+
+async def test_scan_filter_keeps_every_match_on_the_last_page_read(monkeypatch):
+    page1 = [{"id": i, "resolved_at": "2026-06-02"} for i in range(1, 51)]
+    page2 = [{"id": i, "resolved_at": "2026-06-02"} for i in range(51, 61)]
+    rec = Recorder({"tickets": _syncro("tickets", page1 + page2, 50)})
+    out = await _call(monkeypatch, rec, "syncro_tickets_list", {"resolved": True, "per_page": 20})
+    assert [t["id"] for t in out["tickets"]] == list(range(1, 51))  # nothing on page 1 is dropped
+    assert out["next_page"] == 2 and out["has_more"] is True
+
+
+async def test_search_still_honours_its_limit(monkeypatch):
+    rec = Recorder({"customers": _syncro("customers", CUSTOMERS, 100)})
+    out = await _call(monkeypatch, rec, "syncro_customers_search", {"query": "Customer", "limit": 5})
+    assert [c["id"] for c in out["customers"]] == [1, 2, 3, 4, 5]
+    assert out["has_more"] is True

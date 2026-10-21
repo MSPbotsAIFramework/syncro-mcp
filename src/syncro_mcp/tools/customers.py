@@ -24,6 +24,7 @@ from ._common import (
     WRITES,
     ClientFactory,
     Page,
+    Offset,
     PerPage,
     SearchLimit,
     compact,
@@ -45,6 +46,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         include_disabled: Annotated[bool | None, Field(description="Include disabled customers.")] = None,
         page: Page = None,
         per_page: PerPage = None,
+        offset: Offset = None,
     ) -> str:
         """List customers with contact details; filter by search text, business name, email or phone."""
 
@@ -59,7 +61,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     "include_disabled": include_disabled,
                 }
             )
-            return await list_page(client, "customers", "customers", params, page, per_page)
+            return await list_page(client, "customers", "customers", params, page, per_page, offset)
 
         return await run_tool("syncro_customers_list", client_factory, action)
 
@@ -85,7 +87,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
             if not text:
                 raise ValueError("query must not be blank.")
             result = await scan_filtered(
-                client, "customers", "customers", {"query": text}, lambda _c: True, 1, limit or 25, "Syncro search results."
+                client, "customers", "customers", {"query": text}, lambda _c: True, 1, limit or 25, "Syncro search results.",
+                keep_all=False,
             )
             result.pop("note", None)
             return result

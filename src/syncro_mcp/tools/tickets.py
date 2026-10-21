@@ -26,6 +26,7 @@ from ._common import (
     ClientFactory,
     OptionalCustomerId,
     Page,
+    Offset,
     PerPage,
     compact,
     iso_date,
@@ -59,6 +60,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         since: Annotated[str | None, Field(description="Only tickets updated since this ISO 8601 date.")] = None,
         page: Page = None,
         per_page: PerPage = None,
+        offset: Offset = None,
     ) -> str:
         """List tickets, newest first, by customer, contact, status, technician, problem type or date."""
 
@@ -74,7 +76,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                 }
             )
             if problem_type is None and resolved is None:
-                return await list_page(client, "tickets", "tickets", params, page, per_page)
+                return await list_page(client, "tickets", "tickets", params, page, per_page, offset)
             wanted = problem_type.strip().lower() if problem_type else None
 
             def keep(ticket: dict) -> bool:
@@ -82,6 +84,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return resolved is None or bool(ticket.get("resolved_at")) is resolved
 
+            if offset is not None:
+                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
             return await scan_filtered(
                 client, "tickets", "tickets", params, keep, page, per_page or 25,
                 "problem_type / resolved are filtered by this server over the pages listed in scanned_pages.",

@@ -24,6 +24,7 @@ from ._common import (
     ClientFactory,
     OptionalCustomerId,
     Page,
+    Offset,
     PerPage,
     SearchLimit,
     compact,
@@ -44,6 +45,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         query: Annotated[str | None, Field(description="Search text (name, serial, ...).")] = None,
         page: Page = None,
         per_page: PerPage = None,
+        offset: Offset = None,
     ) -> str:
         """List assets (devices) with type, serial, customer and RMM properties."""
 
@@ -53,7 +55,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                 raise ValueError("Pass either query or asset_serial, not both.")
             params = compact({"customer_id": customer_id, "query": query or serial})
             if not asset_type and not serial:
-                return await list_page(client, "customer_assets", "assets", params, page, per_page)
+                return await list_page(client, "customer_assets", "assets", params, page, per_page, offset)
             kind = (asset_type or "").strip().lower()
 
             def keep(asset: dict) -> bool:
@@ -61,6 +63,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return not serial or str(asset.get("asset_serial") or "").lower() == serial.lower()
 
+            if offset is not None:
+                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
             return await scan_filtered(
                 client, "customer_assets", "assets", params, keep, page, per_page or 25,
                 "asset_type / asset_serial are matched by this server over the pages listed in scanned_pages.",
@@ -98,7 +102,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
 
             result = await scan_filtered(
                 client, "customer_assets", "assets", compact({"query": text or serial, "customer_id": customer_id}),
-                keep, 1, limit or 25, "Syncro search results.",
+                keep, 1, limit or 25, "Syncro search results.", keep_all=False,
             )
             result.pop("note", None)
             return result

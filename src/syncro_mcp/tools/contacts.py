@@ -25,6 +25,7 @@ from ._common import (
     ClientFactory,
     OptionalCustomerId,
     Page,
+    Offset,
     PerPage,
     compact,
     contains,
@@ -43,6 +44,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         query: Annotated[str | None, Field(description="Name, email or phone contains this (filtered by this server).")] = None,
         page: Page = None,
         per_page: PerPage = None,
+        offset: Offset = None,
     ) -> str:
         """List contacts with email, phone and address, optionally for one customer."""
 
@@ -50,7 +52,9 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
             params = compact({"customer_id": customer_id})
             text = (query or "").strip()
             if not text:
-                return await list_page(client, "contacts", "contacts", params, page, per_page)
+                return await list_page(client, "contacts", "contacts", params, page, per_page, offset)
+            if offset is not None:
+                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
             return await scan_filtered(
                 client, "contacts", "contacts", params,
                 lambda c: contains(c, text, "name", "email", "phone", "mobile"), page, per_page or 25,
