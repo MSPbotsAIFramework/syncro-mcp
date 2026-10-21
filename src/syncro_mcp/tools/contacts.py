@@ -31,7 +31,7 @@ from ._common import (
     contains,
     list_page,
     run_tool,
-    scan_filtered,
+    filtered_page,
 )
 
 Text = Annotated[str | None, Field(description="Value to set.")]
@@ -53,11 +53,9 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
             text = (query or "").strip()
             if not text:
                 return await list_page(client, "contacts", "contacts", params, page, per_page, offset)
-            if offset is not None:
-                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
-            return await scan_filtered(
+            return await filtered_page(
                 client, "contacts", "contacts", params,
-                lambda c: contains(c, text, "name", "email", "phone", "mobile"), page, per_page or 25,
+                lambda c: contains(c, text, "name", "email", "phone", "mobile"), page, per_page, offset,
                 "query is matched by this server over the pages listed in scanned_pages.",
             )
 

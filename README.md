@@ -44,9 +44,12 @@ map that window onto Syncro pages, so any size works. Results carry
 `{count, total_entries, total_pages, page, per_page, offset, has_more, next_page, next_offset}`;
 follow `next_page` (or `next_offset`) until `has_more` is false - no record is skipped or
 repeated, also when a large page is cut to fit the response size limit (then only
-`next_offset` is returned). A few filters the Syncro API does not offer are applied by this
-server over up to 5 Syncro pages; those results report `scanned_pages`, `has_more` and
-`next_page` (a Syncro page number) instead of totals, and return every match on the pages read.
+`next_offset` is returned). A few filters the Syncro API does not offer (marked * below) are
+applied by this server: it reads up to 5 Syncro pages from the start position and returns at
+most `per_page` matches; `next_offset` points to the record right after the last match returned
+(or after the last record read), so following it until `has_more` is false returns every match
+exactly once, also when a result is cut to fit the size limit. `scanned_pages` names the Syncro
+pages read.
 
 | Tool | Purpose | Parameters (required in **bold**) |
 |---|---|---|

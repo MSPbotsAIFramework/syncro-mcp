@@ -30,6 +30,7 @@ from ._common import (
     compact,
     list_page,
     run_tool,
+    filtered_page,
     scan_filtered,
 )
 
@@ -63,10 +64,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return not serial or str(asset.get("asset_serial") or "").lower() == serial.lower()
 
-            if offset is not None:
-                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
-            return await scan_filtered(
-                client, "customer_assets", "assets", params, keep, page, per_page or 25,
+            return await filtered_page(
+                client, "customer_assets", "assets", params, keep, page, per_page, offset,
                 "asset_type / asset_serial are matched by this server over the pages listed in scanned_pages.",
             )
 
@@ -102,7 +101,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
 
             result = await scan_filtered(
                 client, "customer_assets", "assets", compact({"query": text or serial, "customer_id": customer_id}),
-                keep, 1, limit or 25, "Syncro search results.", keep_all=False,
+                keep, 1, limit or 25, "Syncro search results.",
             )
             result.pop("note", None)
             return result

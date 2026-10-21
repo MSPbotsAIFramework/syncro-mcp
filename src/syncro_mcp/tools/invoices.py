@@ -33,7 +33,7 @@ from ._common import (
     iso_date,
     list_page,
     run_tool,
-    scan_filtered,
+    filtered_page,
 )
 
 InvoiceId = Annotated[int, Field(description="Syncro invoice id.", ge=1)]
@@ -87,10 +87,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return not text or contains(invoice, text, "number", "name", "customer_business_then_name")
 
-            if offset is not None:
-                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
-            return await scan_filtered(
-                client, "invoices", "invoices", params, keep, page, per_page or 25,
+            return await filtered_page(
+                client, "invoices", "invoices", params, keep, page, per_page, offset,
                 "customer_id / query / partial are matched by this server over the pages listed in scanned_pages.",
             )
 

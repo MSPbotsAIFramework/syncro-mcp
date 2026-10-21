@@ -87,8 +87,7 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
             if not text:
                 raise ValueError("query must not be blank.")
             result = await scan_filtered(
-                client, "customers", "customers", {"query": text}, lambda _c: True, 1, limit or 25, "Syncro search results.",
-                keep_all=False,
+                client, "customers", "customers", {"query": text}, lambda _c: True, 1, limit or 25, "Syncro search results."
             )
             result.pop("note", None)
             return result

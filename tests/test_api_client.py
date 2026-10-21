@@ -149,7 +149,8 @@ async def test_tickets_resolved_filter_scans_pages(monkeypatch):
     assert [t["id"] for t in result["tickets"]] == [100]
     assert result["scanned_pages"] == "1-2"
     assert "next_page" not in result
-    assert len(rec.requests) == 2
+    # Page 1 is read twice: the fixture reports 25 per page, not the built-in 50 for tickets.
+    assert [r.url.params["page"] for r in rec.requests] == ["1", "1", "2"]
 
 
 async def test_bad_since_is_rejected(monkeypatch):
@@ -362,13 +363,14 @@ async def test_offset_and_page_together_are_rejected(monkeypatch):
     assert out["error"]["code"] == "invalid_argument"
 
 
-async def test_scan_filter_keeps_every_match_on_the_last_page_read(monkeypatch):
+async def test_scan_filter_returns_per_page_and_continues_after_the_last_match(monkeypatch):
     page1 = [{"id": i, "resolved_at": "2026-06-02"} for i in range(1, 51)]
     page2 = [{"id": i, "resolved_at": "2026-06-02"} for i in range(51, 61)]
     rec = Recorder({"tickets": _syncro("tickets", page1 + page2, 50)})
     out = await _call(monkeypatch, rec, "syncro_tickets_list", {"resolved": True, "per_page": 20})
-    assert [t["id"] for t in out["tickets"]] == list(range(1, 51))  # nothing on page 1 is dropped
-    assert out["next_page"] == 2 and out["has_more"] is True
+    assert [t["id"] for t in out["tickets"]] == list(range(1, 21))
+    assert (out["next_offset"], out["has_more"]) == (20, True) and "next_page" not in out
+
 
 
 async def test_search_still_honours_its_limit(monkeypatch):
@@ -376,3 +378,34 @@ async def test_search_still_honours_its_limit(monkeypatch):
     out = await _call(monkeypatch, rec, "syncro_customers_search", {"query": "Customer", "limit": 5})
     assert [c["id"] for c in out["customers"]] == [1, 2, 3, 4, 5]
     assert out["has_more"] is True
+
+
+# ---- server-side filters page without gaps, also when cut by size (PRD-20961 retest) ----
+
+
+def _big(i: int, **extra) -> dict:
+    """A record too large for 50 of them to fit the response size limit."""
+    return {"id": i, **extra, "notes": [f"line {j}" for j in range(5)], **{f"f{j}": f"value-{j:04d}" for j in range(60)}}
+
+
+@pytest.mark.parametrize("args", [{"resolved": False}, {"resolved": False, "per_page": 10}, {"resolved": False, "per_page": 3}],
+                         ids=["default", "per_page-10", "per_page-3"])
+async def test_unresolved_tickets_page_completely_even_when_cut(monkeypatch, args):
+    rows = [_big(i, resolved_at=None if i % 3 else "2026-06-01") for i in range(1, 201)]  # 134 unresolved
+    expected = [r["id"] for r in rows if r["resolved_at"] is None]
+    seen = await _follow(monkeypatch, "syncro_tickets_list", "tickets", _syncro("tickets", rows, 50), args)
+    assert seen == expected
+
+
+async def test_other_server_side_filters_page_completely(monkeypatch):
+    contacts = [_big(i, name=f"{'Alice' if i % 4 == 0 else 'Bob'} {i}") for i in range(1, 121)]
+    seen = await _follow(monkeypatch, "syncro_contacts_list", "contacts", _syncro("contacts", contacts, 50), {"query": "alice", "per_page": 7})
+    assert seen == [i for i in range(1, 121) if i % 4 == 0]
+
+    assets = [_big(i, asset_type="Syncro Device" if i % 2 else "Printer") for i in range(1, 81)]
+    seen = await _follow(monkeypatch, "syncro_assets_list", "assets", _syncro("assets", assets, 25), {"asset_type": "printer"})
+    assert seen == [i for i in range(1, 81) if i % 2 == 0]
+
+    invoices = [_big(i, customer_id=7 if i % 5 == 0 else 8) for i in range(1, 101)]
+    seen = await _follow(monkeypatch, "syncro_invoices_list", "invoices", _syncro("invoices", invoices, 25), {"customer_id": 7, "per_page": 4})
+    assert seen == [i for i in range(1, 101) if i % 5 == 0]

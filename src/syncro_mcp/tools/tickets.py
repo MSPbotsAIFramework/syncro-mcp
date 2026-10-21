@@ -32,7 +32,7 @@ from ._common import (
     iso_date,
     list_page,
     run_tool,
-    scan_filtered,
+    filtered_page,
 )
 
 TicketId = Annotated[int, Field(description="Syncro ticket id (not the ticket number).", ge=1)]
@@ -84,10 +84,8 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
                     return False
                 return resolved is None or bool(ticket.get("resolved_at")) is resolved
 
-            if offset is not None:
-                raise ValueError("offset works only without the server-side filters; use page (Syncro pages) instead.")
-            return await scan_filtered(
-                client, "tickets", "tickets", params, keep, page, per_page or 25,
+            return await filtered_page(
+                client, "tickets", "tickets", params, keep, page, per_page, offset,
                 "problem_type / resolved are filtered by this server over the pages listed in scanned_pages.",
             )
 

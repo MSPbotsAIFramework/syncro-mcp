@@ -162,6 +162,107 @@ async def _read_window(
     return rows, total
 
 
+async def filtered_page(
+    client: SyncroClient,
+    path: str,
+    key: str,
+    params: dict[str, Any],
+    predicate: Predicate,
+    page: int | None,
+    per_page: int | None,
+    offset: int | None,
+    note: str,
+) -> dict:
+    """Up to ``per_page`` records matching ``predicate`` (a filter Syncro does not offer).
+
+    Scanning starts at record ``offset`` (or the first record of Syncro page ``page``)
+    and reads at most MAX_SCAN_PAGES Syncro pages. next_offset is the record right
+    after the last match returned (or after the last record read when nothing more
+    matched), so following it never skips or repeats a match - also when the size
+    cap cuts the result, thanks to the per-match positions passed in ``_resume``.
+    """
+    if page is not None and offset is not None:
+        raise ValueError("Pass page or offset, not both.")
+    want = per_page or PAGE_SIZE
+    size = NATIVE_PAGE_SIZES.get(path, PAGE_SIZE)
+    for _ in range(3):  # re-run once the response reveals a different page size
+        start = offset if offset is not None else ((page or 1) - 1) * size
+        scan = await _scan(client, path, key, params, predicate, start, want, size)
+        if isinstance(scan, int):
+            size = scan
+            continue
+        matches, positions, end, last_read, total, first_page = scan
+        more = end < total if isinstance(total, int) else not last_read
+        result = compact(
+            {
+                key: matches,
+                "count": len(matches),
+                "per_page": want,
+                "offset": start,
+                "scanned_pages": f"{first_page}-{(max(end, start + 1) - 1) // size + 1}",
+                "total_entries": total,
+                "has_more": more,
+                "next_page": end // size + 1 if more and end % size == 0 else None,
+                "next_offset": end if more else None,
+                "note": note,
+            }
+        )
+        # Where to continue after each match, so a size-capped result resumes exactly.
+        result["_resume"] = {"key": "next_offset", "positions": positions}
+        return result
+    raise SyncroError(502, f"Syncro kept changing the page size of {path}; try again.")
+
+
+async def _scan(
+    client: SyncroClient,
+    path: str,
+    key: str,
+    params: dict[str, Any],
+    predicate: Predicate,
+    start: int,
+    want: int,
+    size: int,
+) -> tuple[list[dict], list[int], int, bool, int | None, int] | int:
+    """Scan from record ``start``; returns (matches, positions, end, last_read, total, first_page).
+
+    ``end`` is the record offset to continue from; ``positions[i]`` is where to continue
+    after ``matches[i]``. Returns the real page size instead when ``size`` was wrong.
+    """
+    matches: list[dict] = []
+    positions: list[int] = []
+    total: int | None = None
+    syncro_page, inside = divmod(start, size)
+    first_page = syncro_page + 1
+    end = start
+    last_read = False
+    for _ in range(MAX_SCAN_PAGES):
+        items, meta = _page_payload(await client.get(path, compact({**params, "page": syncro_page + 1})), key)
+        total_pages = meta.get("total_pages")
+        last_read = not items or (isinstance(total_pages, int) and syncro_page + 1 >= total_pages)
+        actual = meta.get("per_page")
+        if not (isinstance(actual, int) and actual > 0) and items and not last_read:
+            actual = len(items)  # a full, non-final page shows the real size
+        if isinstance(actual, int) and actual > 0 and actual != size:
+            return actual
+        if isinstance(meta.get("total_entries"), int):
+            total = meta["total_entries"]
+        base = syncro_page * size
+        for index in range(inside, len(items)):
+            end = base + index + 1
+            if predicate(items[index]):
+                matches.append(items[index])
+                positions.append(end)
+                if len(matches) >= want:
+                    return matches, positions, end, last_read and index + 1 >= len(items), total, first_page
+        end = max(end, base + len(items))
+        if last_read or len(items) < size:
+            if total is None:
+                total = end
+            return matches, positions, end, True, total, first_page
+        syncro_page, inside = syncro_page + 1, 0
+    return matches, positions, end, False, total, first_page
+
+
 async def scan_filtered(
     client: SyncroClient,
     path: str,
@@ -171,20 +272,14 @@ async def scan_filtered(
     page: int | None,
     want: int,
     note: str,
-    keep_all: bool = True,
 ) -> dict:
-    """Read Syncro pages from ``page`` (up to MAX_SCAN_PAGES) and keep records matching ``predicate``.
-
-    Used for filters the Syncro API does not offer itself. It stops after the page on
-    which at least ``want`` matches were found and returns every match from the pages
-    it read, so continuing from next_page never skips a match. With ``keep_all=False``
-    (search tools, which do not page) it returns at most ``want`` matches instead.
-    """
+    """Search helper: up to ``want`` matching records from up to MAX_SCAN_PAGES pages (no paging)."""
     current = page or 1
-    first, matches, total_pages = current, [], None
+    first, matches = current, []
+    exhausted = False
     for _ in range(MAX_SCAN_PAGES):
         items, meta = _page_payload(await client.get(path, compact({**params, "page": current})), key)
-        total_pages = meta.get("total_pages", total_pages)
+        total_pages = meta.get("total_pages")
         page_size = meta.get("per_page")
         matches.extend(i for i in items if predicate(i))
         exhausted = (
@@ -195,26 +290,12 @@ async def scan_filtered(
         if len(matches) >= want or exhausted:
             break
         current += 1
-    else:
-        exhausted = False
-    if not keep_all:
-        return compact(
-            {
-                key: matches[:want],
-                "count": min(len(matches), want),
-                "scanned_pages": f"{first}-{current}",
-                "has_more": len(matches) > want or not exhausted,
-                "note": note,
-            }
-        )
     return compact(
         {
-            key: matches,
-            "count": len(matches),
+            key: matches[:want],
+            "count": min(len(matches), want),
             "scanned_pages": f"{first}-{current}",
-            "total_pages": total_pages,
-            "has_more": not exhausted,
-            "next_page": None if exhausted else current + 1,
+            "has_more": len(matches) > want or not exhausted,
             "note": note,
         }
     )
