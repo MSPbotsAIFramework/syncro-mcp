@@ -94,8 +94,8 @@ def test_write_tools_say_when_to_use_them(tools, name):
     assert "explicitly asks" in description or "explicit request" in description
 
 
-def test_invoice_email_takes_only_the_invoice(tools):
-    assert set(tools["syncro_invoices_email"].inputSchema["properties"]) == {"invoice_id"}
+def test_invoice_email_params(tools):
+    assert set(tools["syncro_invoices_email"].inputSchema["properties"]) == {"invoice_id", "cc_emails", "subject", "message"}
 
 
 def test_instructions_budget():

@@ -63,7 +63,7 @@ to 5 pages; those results report `scanned_pages` and `next_page` instead of tota
 | `syncro_invoices_list` | List invoices | customer_id*, status (`paid`, `unpaid`, `partial`*), since_date, query*, page, per_page |
 | `syncro_invoices_get` | One invoice with line items, totals and balance | **invoice_id** |
 | `syncro_invoices_create` | Create an empty invoice numbered by Syncro (**write**) | **customer_id**, date (default today), due_date, notes |
-| `syncro_invoices_email` | Email an invoice to its customer (**write**) | **invoice_id** |
+| `syncro_invoices_email` | Email an invoice to its customer (**write**) | **invoice_id**, cc_emails, subject, message (accepted, ignored) |
 
 \* applied by this server, as described above.
 
@@ -132,9 +132,10 @@ uv run pytest
 - **Tool count (21).** Tool names and required parameters are unchanged.
 - **Invoice states.** Syncro exposes paid / unpaid amounts, not draft / sent / viewed / void
   states; those values now return a clear `invalid_argument` instead of being ignored.
-- **Removed no-op parameters.** `syncro_invoices_email` no longer takes `cc_emails`,
-  `subject` or `message`: the endpoint has no such options (it uses the account's invoice email
-  settings). `per_page` is capped at Syncro's fixed page size of 25.
+- **Accepted but ignored.** `syncro_invoices_email` still takes `cc_emails`, `subject` and
+  `message` for compatibility, but does not send them: `POST /invoices/{id}/email` has no
+  request body (it uses the account's invoice email settings); the result lists them under
+  `ignored_params`. `per_page` is capped at Syncro's fixed page size of 25.
 - **Write tools.** The 7 tools marked **write** change records or contact the customer; their
   descriptions tell the agent to use them only on explicit request. There are no delete tools.
 - **No interactive prompts.** Older versions asked the user for a date range before an

@@ -257,6 +257,16 @@ async def test_invoice_email(monkeypatch):
     result = await _call(monkeypatch, rec, "syncro_invoices_email", {"invoice_id": 6})
     assert result["status"] == "sent"
     assert body(rec.calls("invoices/6/email", "POST")[0]) == {}
+    assert "ignored_params" not in result
+
+
+async def test_invoice_email_accepts_and_ignores_cc_subject_message(monkeypatch):
+    rec = Recorder({"POST invoices/6/email": {}})
+    args = {"invoice_id": 6, "cc_emails": "billing@example.com", "subject": "Your invoice", "message": "Thanks"}
+    result = await _call(monkeypatch, rec, "syncro_invoices_email", args)
+    assert result["status"] == "sent"
+    assert result["ignored_params"] == ["cc_emails", "subject", "message"]
+    assert body(rec.calls("invoices/6/email", "POST")[0]) == {}
 
 
 async def test_gets_unwrap_their_record(monkeypatch):

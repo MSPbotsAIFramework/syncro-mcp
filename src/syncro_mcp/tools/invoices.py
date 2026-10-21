@@ -36,6 +36,7 @@ from ._common import (
 )
 
 InvoiceId = Annotated[int, Field(description="Syncro invoice id.", ge=1)]
+_IGNORED = "Accepted for compatibility; the Syncro API ignores it (the invoice email endpoint takes no options)."
 InvoiceStatus = Literal["paid", "unpaid", "partial", "draft", "sent", "viewed", "void"]
 _UNSUPPORTED = {"draft", "sent", "viewed", "void"}
 
@@ -123,15 +124,26 @@ def register(mcp: FastMCP, client_factory: ClientFactory) -> None:
         return await run_tool("syncro_invoices_create", client_factory, action)
 
     @mcp.tool(annotations=WRITES)
-    async def syncro_invoices_email(invoice_id: InvoiceId) -> str:
+    async def syncro_invoices_email(
+        invoice_id: InvoiceId,
+        cc_emails: Annotated[str | list[str] | None, Field(description=_IGNORED)] = None,
+        subject: Annotated[str | None, Field(description=_IGNORED)] = None,
+        message: Annotated[str | None, Field(description=_IGNORED)] = None,
+    ) -> str:
         """Email an invoice to its customer using the account's invoice email settings.
 
         Contacts the customer: only when the user explicitly asks for that invoice.
+        cc_emails, subject and message are not supported by Syncro and are not applied.
         """
+        ignored = [k for k, v in (("cc_emails", cc_emails), ("subject", subject), ("message", message)) if v is not None]
 
         async def action(client: SyncroClient) -> dict:
+            # POST /invoices/{id}/email takes no request body; these options cannot be sent.
             await client.post(f"invoices/{invoice_id}/email")
-            return {"status": "sent", "invoice_id": invoice_id, "message": "Syncro accepted the request to email the invoice."}
+            result = {"status": "sent", "invoice_id": invoice_id, "message": "Syncro accepted the request to email the invoice."}
+            if ignored:
+                result["ignored_params"] = ignored
+            return result
 
         return await run_tool("syncro_invoices_email", client_factory, action)
 

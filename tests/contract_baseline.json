@@ -1,0 +1,233 @@
+{
+  "int_baseline": {
+    "syncro_assets_list": {
+      "params": [
+        "customer_id",
+        "asset_type",
+        "asset_serial",
+        "query",
+        "page",
+        "per_page"
+      ],
+      "required": []
+    },
+    "syncro_assets_get": {
+      "params": [
+        "asset_id"
+      ],
+      "required": [
+        "asset_id"
+      ]
+    },
+    "syncro_assets_search": {
+      "params": [
+        "query",
+        "asset_serial",
+        "customer_id",
+        "limit"
+      ],
+      "required": []
+    },
+    "syncro_contacts_list": {
+      "params": [
+        "customer_id",
+        "query",
+        "page",
+        "per_page"
+      ],
+      "required": []
+    },
+    "syncro_contacts_get": {
+      "params": [
+        "contact_id"
+      ],
+      "required": [
+        "contact_id"
+      ]
+    },
+    "syncro_contacts_create": {
+      "params": [
+        "customer_id",
+        "name",
+        "email",
+        "phone",
+        "mobile",
+        "address1",
+        "address2",
+        "city",
+        "state",
+        "zip",
+        "notes"
+      ],
+      "required": [
+        "customer_id",
+        "name"
+      ]
+    },
+    "syncro_customers_list": {
+      "params": [
+        "query",
+        "business_name",
+        "email",
+        "phone",
+        "include_disabled",
+        "page",
+        "per_page"
+      ],
+      "required": []
+    },
+    "syncro_customers_get": {
+      "params": [
+        "customer_id"
+      ],
+      "required": [
+        "customer_id"
+      ]
+    },
+    "syncro_customers_create": {
+      "params": [
+        "business_name",
+        "firstname",
+        "lastname",
+        "email",
+        "phone",
+        "mobile",
+        "address",
+        "address_2",
+        "city",
+        "state",
+        "zip",
+        "notes"
+      ],
+      "required": []
+    },
+    "syncro_customers_search": {
+      "params": [
+        "query",
+        "limit"
+      ],
+      "required": [
+        "query"
+      ]
+    },
+    "syncro_invoices_list": {
+      "params": [
+        "customer_id",
+        "status",
+        "since_date",
+        "query",
+        "page",
+        "per_page"
+      ],
+      "required": []
+    },
+    "syncro_invoices_get": {
+      "params": [
+        "invoice_id"
+      ],
+      "required": [
+        "invoice_id"
+      ]
+    },
+    "syncro_invoices_create": {
+      "params": [
+        "customer_id",
+        "date",
+        "due_date",
+        "notes"
+      ],
+      "required": [
+        "customer_id"
+      ]
+    },
+    "syncro_invoices_email": {
+      "params": [
+        "invoice_id",
+        "cc_emails",
+        "subject",
+        "message"
+      ],
+      "required": [
+        "invoice_id"
+      ]
+    },
+    "syncro_tickets_list": {
+      "params": [
+        "customer_id",
+        "contact_id",
+        "status",
+        "user_id",
+        "problem_type",
+        "resolved",
+        "query",
+        "since",
+        "page",
+        "per_page"
+      ],
+      "required": []
+    },
+    "syncro_tickets_get": {
+      "params": [
+        "ticket_id"
+      ],
+      "required": [
+        "ticket_id"
+      ]
+    },
+    "syncro_tickets_create": {
+      "params": [
+        "customer_id",
+        "subject",
+        "problem_type",
+        "status",
+        "contact_id",
+        "user_id",
+        "due_date",
+        "comment_body",
+        "comment_subject"
+      ],
+      "required": [
+        "customer_id",
+        "subject"
+      ]
+    },
+    "syncro_tickets_update": {
+      "params": [
+        "ticket_id",
+        "subject",
+        "problem_type",
+        "status",
+        "user_id",
+        "due_date"
+      ],
+      "required": [
+        "ticket_id"
+      ]
+    },
+    "syncro_tickets_add_comment": {
+      "params": [
+        "ticket_id",
+        "body",
+        "subject",
+        "hidden",
+        "do_not_email"
+      ],
+      "required": [
+        "ticket_id",
+        "body"
+      ]
+    },
+    "syncro_navigate": {
+      "params": [
+        "domain"
+      ],
+      "required": [
+        "domain"
+      ]
+    },
+    "syncro_status": {
+      "params": [],
+      "required": []
+    }
+  }
+}
